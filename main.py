@@ -1,118 +1,100 @@
-# Importando as bibliotecas necessárias
-from Crypto.Cipher import ChaCha20_Poly1305
+from Crypto.Cipher import Salsa20
 from Crypto.Random import get_random_bytes
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import ec
 
-BYTES = 32
-class ChaCha20Cipher:
-    """
-    Esta classe encapsula a lógica para criptografar e autenticar mensagens
-    usando o algoritmo ChaCha20 com o autenticador Poly1305 (AEAD).
-    """
 
-    def __init__(self, key):
-        """
-        O construtor da classe.
+class Salsa20Confidentiality:
+    KEY_SIZE = 32
+    # CORREÇÃO: O nonce para a biblioteca pycryptodome deve ser de 8 bytes.
+    NONCE_SIZE = 8
 
-        Args:
-            key (bytes): A chave secreta. Para ChaCha20, deve ter 32 bytes (256 bits).
-        """
-        # ChaCha20 exige uma chave de 256 bits (32 bytes)
-        if len(key) != BYTES:
-            raise ValueError("A chave ChaCha20 deve ter exatamente 32 bytes.")
-        self.key = key
+    def __init__(self, shared_key: bytes):
+        if len(shared_key) != self.KEY_SIZE:
+            msg = f"Erro: A chave deve ter exatamente {self.KEY_SIZE} bytes."
+            raise ValueError(
+                msg
+            )
+        self.shared_key = shared_key
 
-    def encrypt(self, plain_text):
-        """
-        Criptografa e autentica uma mensagem de texto plano.
+    def encrypt(self, plaintext: str) -> bytes:
+        nonce = get_random_bytes(self.NONCE_SIZE)
+        cipher = Salsa20.new(key=self.shared_key, nonce=nonce)
+        ciphertext = cipher.encrypt(plaintext.encode("utf-8"))
+        return nonce + ciphertext
 
-        Args:
-            plain_text (str): A mensagem que você quer proteger.
-
-        Returns:
-            bytes: A mensagem criptografada, combinando nonce, tag e o texto cifrado.
-                   Formato: [12 bytes de nonce][16 bytes de tag][texto cifrado]
-        """
-        plain_text_bytes = plain_text.encode("utf-8")
-
-        # Criamos um novo cifrador. Para ChaCha20-Poly1305, a biblioteca pycryptodome
-        # nos dá um objeto que já une os dois.
-        cipher = ChaCha20_Poly1305.new(key=self.key)
-
-        # Criptografamos e geramos o 'tag' de autenticação em um só passo.
-        # O nonce é gerado internamente e fica disponível no atributo cipher.nonce
-        cipher_text, tag = cipher.encrypt_and_digest(plain_text_bytes)
-
-        # O nonce do ChaCha20 tem 12 bytes e o tag do Poly1305 tem 16 bytes.
-        # Nós os retornamos juntos para que a descriptografia possa usá-los.
-        return cipher.nonce + tag + cipher_text
-
-    def decrypt(self, encrypted_message):
-        """
-        Descriptografa e verifica a autenticidade de uma mensagem.
-
-        Args:
-            encrypted_message (bytes): A mensagem criptografada do método encrypt().
-
-        Returns:
-            str: A mensagem original, se a verificação for bem-sucedida.
-            None: Se a mensagem foi adulterada (verificação falhou).
-        """
+    def decrypt(self, packet: bytes) -> str | None:
+        if len(packet) < self.NONCE_SIZE:
+            return None
         try:
-            # Separamos o nonce (12 bytes), o tag (16 bytes) e o texto cifrado.
-            nonce = encrypted_message[:12]
-            tag = encrypted_message[12:28]
-            cipher_text = encrypted_message[28:]
-
-            # Criamos o cifrador com a mesma chave e o nonce extraído.
-            cipher = ChaCha20_Poly1305.new(key=self.key, nonce=nonce)
-
-            # Descriptografamos e VERIFICAMOS a mensagem.
-            # Se o tag não for válido, a biblioteca levantará uma exceção ValueError.
-            decrypted_bytes = cipher.decrypt_and_verify(cipher_text, tag)
-
+            nonce = packet[: self.NONCE_SIZE]
+            ciphertext = packet[self.NONCE_SIZE :]
+            cipher = Salsa20.new(key=self.shared_key, nonce=nonce)
+            decrypted_bytes = cipher.decrypt(ciphertext)
             return decrypted_bytes.decode("utf-8")
-        except (ValueError, KeyError):
-            # A exceção indica que a autenticação falhou!
-            print("Erro de descriptografia: A mensagem é inválida ou foi adulterada!")
+        except KeyError:
             return None
 
 
-# --- Exemplo de Uso ---
+# --- SIMULAÇÃO DO ACORDO DE CHAVE ECDH (sem alterações) ---
+
 if __name__ == "__main__":
-    print("--- Testando o Módulo de Criptografia ChaCha20-Poly1305 ---")
+    print("--- Iniciando Simulação de Acordo de Chave com ECDH ---")
 
-    # 1. Gerar uma chave secreta de 32 bytes (256 bits).
-    secret_key = get_random_bytes(BYTES)
-    cipher_manager = ChaCha20Cipher(secret_key)
+    # PASSO 1: Geração de Chaves ECC para Alice e Bob
+    alice_private_key = ec.generate_private_key(ec.SECP256R1())
+    alice_public_key = alice_private_key.public_key()
 
-    minha_mensagem = (
-        "ChaCha20-Poly1305 é o padrão de ouro para criptografia em software."
-    )
-    print(f"\nMensagem Original: '{minha_mensagem}'")
+    bob_private_key = ec.generate_private_key(ec.SECP256R1())
+    bob_public_key = bob_private_key.public_key()
 
-    # 2. Criptografar a mensagem.
-    mensagem_criptografada = cipher_manager.encrypt(minha_mensagem)
-    print(f"\nMensagem Criptografada (bytes): {mensagem_criptografada}")
+    print("\n[SETUP] Alice e Bob geraram seus pares de chaves ECC.")
 
-    # 3. Descriptografar a mensagem (caminho feliz).
-    mensagem_descriptografada = cipher_manager.decrypt(mensagem_criptografada)
-    if mensagem_descriptografada:
-        print(f"\nMensagem Descriptografada: '{mensagem_descriptografada}'")
-        if minha_mensagem == mensagem_descriptografada:
-            print("✅ Sucesso! A verificação de integridade passou.")
-
-    # 4. Teste de adulteração (simulando um ataque).
-    print("\n--- Simulando uma adulteração na mensagem ---")
-    # Trocamos um byte no meio da mensagem criptografada
-    posicao_adulterada = len(mensagem_criptografada) // 2
-    mensagem_adulterada = (
-        mensagem_criptografada[:posicao_adulterada]
-        + b"!"
-        + mensagem_criptografada[posicao_adulterada + 1 :]
+    # PASSO 2: Troca de Chaves Públicas (Simulação)
+    print(
+        "[REDE] Alice e Bob trocam suas chaves públicas através de um canal público..."
     )
 
-    # Tentamos descriptografar a mensagem adulterada.
-    # O método decrypt() deve retornar None e imprimir um erro.
-    resultado_adulterado = cipher_manager.decrypt(mensagem_adulterada)
-    if resultado_adulterado is None:
-        print("✅ Sucesso! A adulteração foi detectada e a descriptografia bloqueada.")
+    # PASSO 3: Acordo de Chave (A Mágica do ECDH)
+    alice_shared_secret = alice_private_key.exchange(ec.ECDH(), bob_public_key)
+    print("\n[ALICE] Calculou um segredo compartilhado.")
+
+    bob_shared_secret = bob_private_key.exchange(ec.ECDH(), alice_public_key)
+    print("[BOB]   Calculou um segredo compartilhado.")
+
+    # PASSO 4: Verificação Crucial
+    if alice_shared_secret == bob_shared_secret:
+        print("\n[VERIFICAÇÃO] O segredo de Alice e o de Bob são IDÊTICOS!")
+
+    # PASSO 5: Derivação da Chave de Criptografia Final (KDF)
+    digest = hashes.Hash(hashes.SHA256())
+    digest.update(alice_shared_secret)
+    salsa20_key = digest.finalize()
+
+    print(
+        f"[KDF] Chave Salsa20 de 32 bytes derivada do segredo (hex): {salsa20_key.hex()}"
+    )
+
+    # PASSO 6: Usando a Chave Derivada para Comunicação Confidencial
+    print("\n--- A comunicação segura começa agora usando a chave derivada ---")
+
+    crypto_module = Salsa20Confidentiality(salsa20_key)
+
+    mensagem_de_alice = "Bob, a chave foi trocada com sucesso. Podemos conversar."
+    print(f"\n[ALICE] Mensagem Original: '{mensagem_de_alice}'")
+
+    pacote_criptografado = crypto_module.encrypt(mensagem_de_alice)
+    print(f"[ALICE] Pacote Criptografado (hex): {pacote_criptografado.hex()}")
+    print(
+        f"        (Tamanho: {len(pacote_criptografado)} bytes = {Salsa20Confidentiality.NONCE_SIZE} de nonce + {len(pacote_criptografado) - Salsa20Confidentiality.NONCE_SIZE} de dados)"
+    )
+
+    print("\n... Pacote viaja pela rede ...\n")
+
+    mensagem_recebida_por_bob = crypto_module.decrypt(pacote_criptografado)
+    print(f"[BOB] Mensagem Descriptografada: '{mensagem_recebida_por_bob}'")
+
+    if mensagem_de_alice == mensagem_recebida_por_bob:
+        print(
+            "✅ SUCESSO! A confidencialidade foi alcançada usando uma chave estabelecida dinamicamente via ECDH."
+        )
