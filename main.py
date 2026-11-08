@@ -60,7 +60,7 @@ if __name__ == "__main__":
     print("\n[ALICE] Calculou um segredo compartilhado.")
 
     bob_shared_secret = bob_private_key.exchange(ec.ECDH(), alice_public_key)
-    print("[BOB]   Calculou um segredo compartilhado.")
+    print("[BOB] Calculou um segredo compartilhado.")
 
     # PASSO 4: Verificação Crucial
     if alice_shared_secret == bob_shared_secret:
@@ -86,7 +86,7 @@ if __name__ == "__main__":
     pacote_criptografado = crypto_module.encrypt(mensagem_de_alice)
     print(f"[ALICE] Pacote Criptografado (hex): {pacote_criptografado.hex()}")
     print(
-        f"        (Tamanho: {len(pacote_criptografado)} bytes = {Salsa20Confidentiality.NONCE_SIZE} de nonce + {len(pacote_criptografado) - Salsa20Confidentiality.NONCE_SIZE} de dados)"
+        f"(Tamanho: {len(pacote_criptografado)} bytes = {Salsa20Confidentiality.NONCE_SIZE} de nonce + {len(pacote_criptografado) - Salsa20Confidentiality.NONCE_SIZE} de dados)"
     )
 
     print("\n... Pacote viaja pela rede ...\n")
