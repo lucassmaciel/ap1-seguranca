@@ -21,7 +21,7 @@ Para a implementação da camada de confidencialidade, os seguintes componentes 
 ## Workflow do Remetente
 
 1.  **Obtenção da Chave:** Acessar a chave secreta de 32 bytes compartilhada com o destinatário.
-2.  **Geração do Nonce:** Gerar 24 bytes de dados aleatórios a partir de uma fonte criptograficamente segura. Este será o nonce da mensagem.
+2.  **Geração do Nonce:** Gerar 8 bytes de dados aleatórios a partir de uma fonte criptograficamente segura. Este será o nonce da mensagem.
 3.  **Inicialização do Cifrador:** Instanciar o cifrador Salsa20 com a chave secreta e o nonce recém-gerado.
 4.  **Criptografia:** Aplicar o cifrador ao texto plano da mensagem para produzir o texto cifrado (ciphertext).
 5.  **Formatação do Pacote:** Montar o pacote de dados a ser transmitido pela rede. O destinatário precisa do nonce para descriptografar a mensagem. Portanto, o formato do pacote será:
@@ -31,7 +31,7 @@ Para a implementação da camada de confidencialidade, os seguintes componentes 
 
 1.  **Recebimento do Pacote:** Receber o fluxo de bytes da rede.
 2.  **Extração dos Componentes:** Separar o pacote recebido:
-    * Os primeiros 24 bytes são o Nonce.
+    * Os primeiros 8 bytes são o Nonce.
     * O restante dos bytes é o Texto Cifrado.
 3.  **Obtenção da Chave:** Acessar a chave secreta de 32 bytes compartilhada com o remetente.
 4.  **Inicialização do Cifrador:** Instanciar o cifrador Salsa20 com a chave secreta e o nonce extraído do pacote.
